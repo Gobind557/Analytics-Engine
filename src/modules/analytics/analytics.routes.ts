@@ -2,6 +2,15 @@ import { Router } from 'express';
 import { validateRequest } from '../../common/middleware/validate-request';
 import { asyncHandler } from '../../common/utils/async-handler';
 import { apiKeyAuthMiddleware } from '../auth/api-key-auth.middleware';
+import { AnalyticsController } from './analytics.controller';
+import {
+  appSummaryQuerySchema,
+  eventSummaryQuerySchema,
+  timeSeriesQuerySchema,
+  userStatsQuerySchema
+} from './analytics.schema';
+import { AnalyticsRepository } from './analytics.repository';
+import { AnalyticsService } from './analytics.service';
 import { EventsController } from '../events/events.controller';
 import { EventsRepository } from '../events/events.repository';
 import { EventsService } from '../events/events.service';
@@ -10,6 +19,7 @@ import { batchEventPayloadSchema, eventPayloadSchema } from '../events/events.sc
 export function createAnalyticsRouter(): Router {
   const router = Router();
   const eventsController = new EventsController(new EventsService(new EventsRepository()));
+  const analyticsController = new AnalyticsController(new AnalyticsService(new AnalyticsRepository()));
 
   router.use(apiKeyAuthMiddleware);
   router.post('/collect', validateRequest(eventPayloadSchema), asyncHandler(eventsController.collect.bind(eventsController)));
@@ -17,6 +27,26 @@ export function createAnalyticsRouter(): Router {
     '/collect/batch',
     validateRequest(batchEventPayloadSchema),
     asyncHandler(eventsController.collectBatch.bind(eventsController))
+  );
+  router.get(
+    '/event-summary',
+    validateRequest(eventSummaryQuerySchema, 'query'),
+    asyncHandler(analyticsController.getEventSummary.bind(analyticsController))
+  );
+  router.get(
+    '/time-series',
+    validateRequest(timeSeriesQuerySchema, 'query'),
+    asyncHandler(analyticsController.getTimeSeries.bind(analyticsController))
+  );
+  router.get(
+    '/app-summary',
+    validateRequest(appSummaryQuerySchema, 'query'),
+    asyncHandler(analyticsController.getAppSummary.bind(analyticsController))
+  );
+  router.get(
+    '/user-stats',
+    validateRequest(userStatsQuerySchema, 'query'),
+    asyncHandler(analyticsController.getUserStats.bind(analyticsController))
   );
 
   return router;
