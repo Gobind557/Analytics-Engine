@@ -8,6 +8,7 @@ import { requestLogger } from './common/middleware/request-logger';
 import { createAnalyticsRouter } from './modules/analytics/analytics.routes';
 import { createAuthRouter } from './modules/auth/auth.routes';
 import { createHealthRouter } from './modules/health/health.routes';
+import { configureSwagger } from './config/swagger';
 
 export function createApp() {
   const app = express();
@@ -17,6 +18,7 @@ export function createApp() {
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
+  configureSwagger(app);
 
   app.use('/api', createHealthRouter());
   app.use('/api/auth', createAuthRouter());
