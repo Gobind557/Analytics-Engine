@@ -2,10 +2,11 @@ import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import { createHealthRouter } from './modules/health/health.routes';
 import { errorHandler } from './common/middleware/error-handler';
 import { notFoundHandler } from './common/middleware/not-found-handler';
 import { requestLogger } from './common/middleware/request-logger';
+import { createAuthRouter } from './modules/auth/auth.routes';
+import { createHealthRouter } from './modules/health/health.routes';
 
 export function createApp() {
   const app = express();
@@ -17,6 +18,7 @@ export function createApp() {
   app.use(requestLogger);
 
   app.use('/api', createHealthRouter());
+  app.use('/api/auth', createAuthRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);
