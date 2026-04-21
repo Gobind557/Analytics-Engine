@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { errorHandler } from './common/middleware/error-handler';
 import { notFoundHandler } from './common/middleware/not-found-handler';
 import { requestLogger } from './common/middleware/request-logger';
+import { createAnalyticsRouter } from './modules/analytics/analytics.routes';
 import { createAuthRouter } from './modules/auth/auth.routes';
 import { createHealthRouter } from './modules/health/health.routes';
 
@@ -19,6 +20,7 @@ export function createApp() {
 
   app.use('/api', createHealthRouter());
   app.use('/api/auth', createAuthRouter());
+  app.use('/api/analytics', createAnalyticsRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);
