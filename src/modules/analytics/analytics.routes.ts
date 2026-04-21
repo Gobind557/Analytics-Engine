@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import { rateLimitMiddleware } from '../../common/middleware/rate-limit.middleware';
 import { validateRequest } from '../../common/middleware/validate-request';
 import { asyncHandler } from '../../common/utils/async-handler';
 import { apiKeyAuthMiddleware } from '../auth/api-key-auth.middleware';
+import { AnalyticsCache } from './analytics.cache';
 import { AnalyticsController } from './analytics.controller';
 import {
   appSummaryQuerySchema,
@@ -18,10 +20,12 @@ import { batchEventPayloadSchema, eventPayloadSchema } from '../events/events.sc
 
 export function createAnalyticsRouter(): Router {
   const router = Router();
-  const eventsController = new EventsController(new EventsService(new EventsRepository()));
-  const analyticsController = new AnalyticsController(new AnalyticsService(new AnalyticsRepository()));
+  const analyticsCache = new AnalyticsCache();
+  const eventsController = new EventsController(new EventsService(new EventsRepository(), analyticsCache));
+  const analyticsController = new AnalyticsController(new AnalyticsService(new AnalyticsRepository(), analyticsCache));
 
   router.use(apiKeyAuthMiddleware);
+  router.use(rateLimitMiddleware);
   router.post('/collect', validateRequest(eventPayloadSchema), asyncHandler(eventsController.collect.bind(eventsController)));
   router.post(
     '/collect/batch',
