@@ -6,3 +6,67 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model App {
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String
+  ownerId         String           @map("owner_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  apiKeys         ApiKey[]
+  events          Event[]
+  dailyEventStats DailyEventStat[]
+
+  @@index([ownerId], map: "idx_apps_owner_id")
+  @@map("apps")
+}
+
+model ApiKey {
+  id        String   @id @default(uuid()) @db.Uuid
+  appId     String   @map("app_id") @db.Uuid
+  keyHash   String   @unique @map("key_hash")
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId, revoked], map: "idx_api_keys_app_id_revoked")
+  @@map("api_keys")
+}
+
+model Event {
+  id        String   @id @default(uuid()) @db.Uuid
+  appId     String   @map("app_id") @db.Uuid
+  eventName String   @map("event_name")
+  userId    String?  @map("user_id")
+  timestamp DateTime @db.Timestamp(6)
+  device    String
+  referrer  String?
+  url       String
+  ipAddress String   @map("ip_address")
+  metadata  Json?
+  app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([eventName, timestamp], map: "idx_events_event_name_timestamp")
+  @@index([appId, timestamp], map: "idx_events_app_id_timestamp")
+  @@index([userId], map: "idx_events_user_id")
+  @@index([timestamp], map: "idx_events_timestamp")
+  @@index([appId, userId, timestamp], map: "idx_events_app_id_user_id_timestamp")
+  @@map("events")
+}
+
+model DailyEventStat {
+  id           String   @id @default(uuid()) @db.Uuid
+  appId        String   @map("app_id") @db.Uuid
+  eventName    String   @map("event_name")
+  date         DateTime @db.Date
+  count        Int
+  uniqueUsers  Int      @map("unique_users")
+  mobileCount  Int      @map("mobile_count")
+  desktopCount Int      @map("desktop_count")
+  app          App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, eventName, date], map: "uq_daily_event_stats_app_event_date")
+  @@index([appId, date], map: "idx_daily_event_stats_app_id_date")
+  @@index([eventName, date], map: "idx_daily_event_stats_event_name_date")
+  @@map("daily_event_stats")
+}

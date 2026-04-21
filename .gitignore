@@ -6,4 +6,3 @@ coverage
 .idea
 .vscode
 *.log
-prisma/migrations
