@@ -3,13 +3,11 @@ import type { Config } from 'jest';
 const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  rootDir: '..',
-  roots: ['<rootDir>/test'],
+  roots: ['<rootDir>/src'],
   moduleFileExtensions: ['ts', 'js', 'json'],
-  testMatch: ['**/*.integration-spec.ts'],
+  testMatch: ['**/*.spec.ts'],
   clearMocks: true,
-  setupFiles: ['<rootDir>/test/test-env.ts'],
-  setupFilesAfterEnv: ['<rootDir>/test/setup-integration.ts']
+  setupFiles: ['<rootDir>/test/test-env.ts']
 };
 
 export default config;

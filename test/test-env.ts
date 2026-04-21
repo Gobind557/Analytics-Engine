@@ -1,0 +1,9 @@
+process.env.NODE_ENV = 'test';
+process.env.PORT = process.env.PORT ?? '3001';
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/analytics_engine?schema=public';
+process.env.REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
+process.env.API_KEY_TTL_DAYS = process.env.API_KEY_TTL_DAYS ?? '90';
+process.env.EVENT_SUMMARY_CACHE_TTL_SECONDS = process.env.EVENT_SUMMARY_CACHE_TTL_SECONDS ?? '120';
+process.env.RATE_LIMIT_MAX_REQUESTS = process.env.RATE_LIMIT_MAX_REQUESTS ?? '10';
+process.env.RATE_LIMIT_WINDOW_SECONDS = process.env.RATE_LIMIT_WINDOW_SECONDS ?? '60';

@@ -11,7 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "test": "jest --runInBand",
+    "test": "jest --config ./jest.config.ts --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:integration": "jest --config ./test/jest.integration.config.ts --runInBand"
