@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import { classifyDeviceType } from '../../common/utils/device';
 import { prisma } from '../../prisma/prisma-client';
-import { addUtcDays, toStartOfUtcDay } from '../../common/utils/date';
+import { toStartOfUtcDay } from '../../common/utils/date';
 import { EventPayload } from './events.schema';
 
 type AffectedStatKey = {
@@ -22,6 +23,7 @@ export class EventsRepository {
           userId: event.userId ?? null,
           timestamp: event.timestamp,
           device: event.device,
+          deviceType: classifyDeviceType(event.device),
           referrer: event.referrer ?? null,
           url: event.url,
           ipAddress: event.ipAddress,
@@ -46,6 +48,7 @@ export class EventsRepository {
           userId: event.userId ?? null,
           timestamp: event.timestamp,
           device: event.device,
+          deviceType: classifyDeviceType(event.device),
           referrer: event.referrer ?? null,
           url: event.url,
           ipAddress: event.ipAddress,
@@ -77,54 +80,76 @@ export class EventsRepository {
   }
 
   private async refreshDailyStats(tx: Prisma.TransactionClient, keys: AffectedStatKey[]) {
-    for (const key of keys) {
-      const dayStart = toStartOfUtcDay(key.date);
-      const dayEnd = addUtcDays(dayStart, 1);
-      const [aggregate] = await tx.$queryRaw<
-        Array<{
-          count: number;
-          uniqueUsers: number;
-          mobileCount: number;
-          desktopCount: number;
-        }>
-      >`
-        SELECT
-          COUNT(*)::int AS "count",
-          COUNT(DISTINCT user_id)::int AS "uniqueUsers",
-          SUM(CASE WHEN LOWER(device) SIMILAR TO '%(mobile|android|iphone|ipad|tablet)%' THEN 1 ELSE 0 END)::int AS "mobileCount",
-          SUM(CASE WHEN LOWER(device) SIMILAR TO '%(mobile|android|iphone|ipad|tablet)%' THEN 0 ELSE 1 END)::int AS "desktopCount"
-        FROM events
-        WHERE app_id = ${key.appId}::uuid
-          AND event_name = ${key.eventName}
-          AND timestamp >= ${dayStart}
-          AND timestamp < ${dayEnd};
-      `;
-
-      await tx.dailyEventStat.upsert({
-        where: {
-          appId_eventName_date: {
-            appId: key.appId,
-            eventName: key.eventName,
-            date: dayStart
-          }
-        },
-        create: {
-          id: crypto.randomUUID(),
-          appId: key.appId,
-          eventName: key.eventName,
-          date: dayStart,
-          count: aggregate?.count ?? 0,
-          uniqueUsers: aggregate?.uniqueUsers ?? 0,
-          mobileCount: aggregate?.mobileCount ?? 0,
-          desktopCount: aggregate?.desktopCount ?? 0
-        },
-        update: {
-          count: aggregate?.count ?? 0,
-          uniqueUsers: aggregate?.uniqueUsers ?? 0,
-          mobileCount: aggregate?.mobileCount ?? 0,
-          desktopCount: aggregate?.desktopCount ?? 0
-        }
-      });
+    if (keys.length === 0) {
+      return;
     }
+
+    const keyRows = Prisma.join(
+      keys.map((key) => {
+        const dayStart = toStartOfUtcDay(key.date);
+        return Prisma.sql`(${key.appId}::uuid, ${key.eventName}, ${dayStart}::date)`;
+      })
+    );
+
+    const aggregates = await tx.$queryRaw<
+      Array<{
+        appId: string;
+        eventName: string;
+        date: Date;
+        count: number;
+        uniqueUsers: number;
+        mobileCount: number;
+        desktopCount: number;
+      }>
+    >(Prisma.sql`
+      WITH affected(app_id, event_name, date) AS (
+        VALUES ${keyRows}
+      )
+      SELECT
+        affected.app_id::text AS "appId",
+        affected.event_name AS "eventName",
+        affected.date AS "date",
+        COUNT(events.id)::int AS "count",
+        COUNT(DISTINCT events.user_id)::int AS "uniqueUsers",
+        COALESCE(SUM(CASE WHEN events.device_type = 'mobile' THEN 1 ELSE 0 END), 0)::int AS "mobileCount",
+        COALESCE(SUM(CASE WHEN events.device_type = 'desktop' THEN 1 ELSE 0 END), 0)::int AS "desktopCount"
+      FROM affected
+      LEFT JOIN events
+        ON events.app_id = affected.app_id
+        AND events.event_name = affected.event_name
+        AND events.timestamp >= affected.date::timestamp
+        AND events.timestamp < (affected.date::timestamp + INTERVAL '1 day')
+      GROUP BY affected.app_id, affected.event_name, affected.date;
+    `);
+
+    await Promise.all(
+      aggregates.map((aggregate) =>
+        tx.dailyEventStat.upsert({
+          where: {
+            appId_eventName_date: {
+              appId: aggregate.appId,
+              eventName: aggregate.eventName,
+              date: aggregate.date
+            }
+          },
+          create: {
+            id: crypto.randomUUID(),
+            appId: aggregate.appId,
+            eventName: aggregate.eventName,
+            date: aggregate.date,
+            count: aggregate.count,
+            uniqueUsers: aggregate.uniqueUsers,
+            mobileCount: aggregate.mobileCount,
+            desktopCount: aggregate.desktopCount
+          },
+          update: {
+            count: aggregate.count,
+            uniqueUsers: aggregate.uniqueUsers,
+            mobileCount: aggregate.mobileCount,
+            desktopCount: aggregate.desktopCount
+          }
+        })
+      )
+    );
   }
 }

@@ -19,7 +19,7 @@ export class AnalyticsController {
       req.auth!.appId,
       req.query as unknown as TimeSeriesQuery
     );
-    res.status(StatusCodes.OK).json({ data: timeSeries });
+    res.status(StatusCodes.OK).json(timeSeries);
   }
 
   async getAppSummary(req: Request, res: Response) {

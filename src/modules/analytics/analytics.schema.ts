@@ -5,6 +5,9 @@ const requiredDateRangeShape = {
   endDate: z.coerce.date()
 };
 
+const pageSchema = z.coerce.number().int().min(1).default(1);
+const pageSizeSchema = z.coerce.number().int().min(1).max(50).default(10);
+
 export const eventSummaryQuerySchema = z
   .object({
     ...requiredDateRangeShape,
@@ -26,7 +29,9 @@ export const timeSeriesQuerySchema = z
 export const appSummaryQuerySchema = z
   .object({
     startDate: z.coerce.date().optional(),
-    endDate: z.coerce.date().optional()
+    endDate: z.coerce.date().optional(),
+    recentEventsPage: pageSchema.default(1),
+    recentEventsPageSize: pageSizeSchema.default(10)
   })
   .refine((value) => (!value.startDate && !value.endDate) || (value.startDate && value.endDate), {
     message: 'startDate and endDate must be provided together'
@@ -41,7 +46,9 @@ export const appSummaryQuerySchema = z
 
 export const userStatsQuerySchema = z.object({
   userId: z.string().trim().min(1).max(255),
-  limit: z.coerce.number().int().positive().max(50).default(10)
+  page: pageSchema,
+  pageSize: pageSizeSchema,
+  limit: pageSizeSchema.optional()
 });
 
 export type EventSummaryQuery = z.infer<typeof eventSummaryQuerySchema>;

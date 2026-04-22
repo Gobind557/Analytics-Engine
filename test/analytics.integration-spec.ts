@@ -117,6 +117,12 @@ describe('Unified Event Analytics Engine integration', () => {
     expect(firstSummary.body.cached).toBe(false);
     expect(secondSummary.body.cached).toBe(true);
 
+    const firstAppSummary = await request(app).get('/api/analytics/app-summary').set('x-api-key', rawApiKey);
+    const secondAppSummary = await request(app).get('/api/analytics/app-summary').set('x-api-key', rawApiKey);
+
+    expect(firstAppSummary.body.cached).toBe(false);
+    expect(secondAppSummary.body.cached).toBe(true);
+
     await request(app)
       .post('/api/analytics/collect')
       .set('x-api-key', rawApiKey)
@@ -140,6 +146,11 @@ describe('Unified Event Analytics Engine integration', () => {
 
     expect(invalidatedSummary.body.cached).toBe(false);
     expect(invalidatedSummary.body.totalCount).toBe(2);
+
+    const invalidatedAppSummary = await request(app).get('/api/analytics/app-summary').set('x-api-key', rawApiKey);
+
+    expect(invalidatedAppSummary.body.cached).toBe(false);
+    expect(invalidatedAppSummary.body.totalEvents).toBe(2);
   });
 
   it('returns app, time-series, and user stats queries', async () => {
@@ -196,14 +207,20 @@ describe('Unified Event Analytics Engine integration', () => {
       .set('x-api-key', rawApiKey)
       .query({
         userId: 'user-1',
-        limit: 5
+        page: 1,
+        pageSize: 5
       });
 
     expect(appSummary.body.totalEvents).toBe(3);
     expect(appSummary.body.activeUsers).toBe(2);
+    expect(appSummary.body.recentEvents.data).toHaveLength(3);
+    expect(appSummary.body.recentEvents.page).toBe(1);
     expect(timeSeries.body.data).toHaveLength(2);
+    expect(timeSeries.body.cached).toBe(false);
     expect(userStats.body.totalEvents).toBe(2);
     expect(userStats.body.devices).toHaveLength(2);
+    expect(userStats.body.recentEvents.data).toHaveLength(2);
+    expect(userStats.body.recentEvents.pageSize).toBe(5);
   });
 
   it('enforces rate limits per api key', async () => {

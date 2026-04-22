@@ -56,6 +56,7 @@ export class AnalyticsRepository {
     const startDateInput = query.startDate;
     const endDateInput = query.endDate;
     const hasDateRange = startDateInput instanceof Date && endDateInput instanceof Date;
+    const recentEventsOffset = (query.recentEventsPage - 1) * query.recentEventsPageSize;
     let summaryWhere = Prisma.empty;
     let eventsWhere = Prisma.empty;
 
@@ -68,7 +69,7 @@ export class AnalyticsRepository {
       eventsWhere = Prisma.sql`AND timestamp >= ${startDate} AND timestamp < ${endExclusive}`;
     }
 
-    const [totalEventsRow, activeUsersRow, topEvents] = await Promise.all([
+    const [totalEventsRow, activeUsersRow, topEvents, recentEvents, recentEventsCountRow] = await Promise.all([
       prisma.$queryRaw<Array<{ totalEvents: number }>>(Prisma.sql`
         SELECT COALESCE(SUM(count), 0)::int AS "totalEvents"
         FROM daily_event_stats
@@ -92,17 +93,59 @@ export class AnalyticsRepository {
         GROUP BY event_name
         ORDER BY "totalCount" DESC, event_name ASC
         LIMIT 5;
+      `),
+      prisma.event.findMany({
+        where: {
+          appId,
+          ...(hasDateRange
+            ? {
+                timestamp: {
+                  gte: toStartOfUtcDay(startDateInput!),
+                  lt: addUtcDays(toStartOfUtcDay(endDateInput!), 1)
+                }
+              }
+            : {})
+        },
+        orderBy: {
+          timestamp: 'desc'
+        },
+        skip: recentEventsOffset,
+        take: query.recentEventsPageSize,
+        select: {
+          id: true,
+          eventName: true,
+          userId: true,
+          timestamp: true,
+          device: true,
+          url: true,
+          referrer: true,
+          metadata: true
+        }
+      }),
+      prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS total
+        FROM events
+        WHERE app_id = ${appId}::uuid
+          ${eventsWhere};
       `)
     ]);
 
     return {
       totalEvents: totalEventsRow[0]?.totalEvents ?? 0,
       activeUsers: activeUsersRow[0]?.activeUsers ?? 0,
-      topEvents
+      topEvents,
+      recentEvents: {
+        data: recentEvents,
+        page: query.recentEventsPage,
+        pageSize: query.recentEventsPageSize,
+        total: recentEventsCountRow[0]?.total ?? 0
+      }
     };
   }
 
   async getUserStats(appId: string, query: UserStatsQuery) {
+    const pageSize = query.limit ?? query.pageSize;
+    const offset = (query.page - 1) * pageSize;
     const [totals, recentEvents, deviceBreakdown] = await Promise.all([
       prisma.$queryRaw<Array<{ totalEvents: number; lastActivity: Date | null }>>`
         SELECT
@@ -120,7 +163,8 @@ export class AnalyticsRepository {
         orderBy: {
           timestamp: 'desc'
         },
-        take: query.limit,
+        skip: offset,
+        take: pageSize,
         select: {
           id: true,
           eventName: true,
@@ -133,12 +177,12 @@ export class AnalyticsRepository {
       }),
       prisma.$queryRaw<Array<{ device: string; count: number }>>`
         SELECT
-          device,
+          device_type AS device,
           COUNT(*)::int AS count
         FROM events
         WHERE app_id = ${appId}::uuid
           AND user_id = ${query.userId}
-        GROUP BY device
+        GROUP BY device_type
         ORDER BY count DESC, device ASC;
       `
     ]);
@@ -147,7 +191,12 @@ export class AnalyticsRepository {
       totalEvents: totals[0]?.totalEvents ?? 0,
       lastActivity: totals[0]?.lastActivity ?? null,
       devices: deviceBreakdown,
-      recentEvents
+      recentEvents: {
+        data: recentEvents,
+        page: query.page,
+        pageSize,
+        total: totals[0]?.totalEvents ?? 0
+      }
     };
   }
 }

@@ -1,6 +1,6 @@
 # Unified Event Analytics Engine
 
-Express + TypeScript backend for high-volume event ingestion, pre-aggregated analytics queries, secure API-key auth, targeted Redis caching, and per-key throttling.
+Express + TypeScript backend for high-volume event ingestion, pre-aggregated analytics queries, secure API-key auth, Redis-backed analytics caching, and per-key throttling.
 
 ## Architecture Overview
 
@@ -62,7 +62,7 @@ Stores hashed API keys only. The raw key is returned once at registration or reg
 
 ### `events`
 
-Raw source of truth for ingestion. This table preserves full event payloads, including optional `user_id` and flexible `metadata` via `JSONB`.
+Raw source of truth for ingestion. This table preserves full event payloads, including optional `user_id`, raw `device`, normalized `device_type`, and flexible `metadata` via `JSONB`.
 
 ### `daily_event_stats`
 
@@ -100,24 +100,27 @@ Ingestion writes raw rows to `events` and then refreshes only the touched `(app_
 Why this shape:
 
 - write path stays synchronous and easy to reason about
+- batch aggregate refresh uses one grouped query for all touched keys instead of one scan per key
 - reads for summaries avoid expensive scans over raw events
 - `unique_users` remains exact for each affected day because the aggregate is recomputed from the authoritative raw rows for that slice only
+- mobile vs desktop counts are based on normalized ingestion-time classification instead of runtime SQL pattern matching
 
 This is a good v1 tradeoff before moving to background jobs or stream processors.
 
 ## Caching Strategy
 
-Only `GET /api/analytics/event-summary` is cached.
+Read-heavy analytics endpoints are cached:
 
-- key format: `analytics:event:{event}:{start}:{end}:{appId}`
+- `GET /api/analytics/event-summary`
+- `GET /api/analytics/time-series`
+- `GET /api/analytics/app-summary`
+- `GET /api/analytics/user-stats`
+
+- key format: `analytics:{endpoint}:{appId}:...`
 - TTL: `EVENT_SUMMARY_CACHE_TTL_SECONDS` with a default of `300`
-- invalidation: new ingestion deletes cached event-summary entries for the affected `eventName` + `appId`
+- invalidation: new ingestion deletes all cached analytics views for the affected `appId`
 
-Why only this endpoint:
-
-- it is highly repeatable and reads only aggregate data
-- invalidation is narrow and cheap
-- broader caching would add more consistency complexity than value in v1
+This keeps repeated dashboard reads cheap while avoiding stale time-series, app-summary, or user-level responses after ingestion.
 
 ## Rate Limiting Approach
 
@@ -144,8 +147,8 @@ The query layer intentionally pushes filters into `WHERE` before aggregation:
 
 - event summary reads `daily_event_stats` with `app_id`, `event_name`, and date bounds applied first
 - time-series groups only the filtered aggregate rows
-- app summary uses aggregate rows for totals and top events, but uses raw events for exact active-user counts
-- user stats read from raw `events` because per-user recent activity and device history need unaggregated detail
+- app summary uses aggregate rows for totals and top events, but uses raw events for exact active-user counts and a paginated recent-events feed
+- user stats read from raw `events` because per-user recent activity needs unaggregated detail, with pagination applied to the recent-events list
 
 ## Testing
 
@@ -163,7 +166,7 @@ Integration coverage includes:
 - app/time-series/user analytics queries
 - per-key rate limiting
 
-In this session, unit tests were executed successfully. The integration suite is included, but the local Postgres credentials available in this environment do not match the default `.env` values, so DB-backed integration execution here was blocked until the database is started with the documented credentials or the env vars are updated.
+
 
 ## Tradeoffs and Future Evolution
 

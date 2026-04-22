@@ -235,11 +235,18 @@ const openApiDocument = {
     },
     '/api/analytics/app-summary': {
       get: {
-        summary: 'Get app-level metrics and top events',
+        summary: 'Get app-level metrics, top events, and paginated recent events',
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           { name: 'startDate', in: 'query', required: false, schema: { type: 'string', format: 'date' } },
-          { name: 'endDate', in: 'query', required: false, schema: { type: 'string', format: 'date' } }
+          { name: 'endDate', in: 'query', required: false, schema: { type: 'string', format: 'date' } },
+          { name: 'recentEventsPage', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+          {
+            name: 'recentEventsPageSize',
+            in: 'query',
+            required: false,
+            schema: { type: 'integer', default: 10, maximum: 50 }
+          }
         ],
         responses: {
           '200': {
@@ -250,11 +257,19 @@ const openApiDocument = {
     },
     '/api/analytics/user-stats': {
       get: {
-        summary: 'Get user-level event and device statistics',
+        summary: 'Get user-level event and normalized device statistics with paginated recent events',
         security: [{ ApiKeyAuth: [] }],
         parameters: [
           { name: 'userId', in: 'query', required: true, schema: { type: 'string' } },
-          { name: 'limit', in: 'query', required: false, schema: { type: 'integer', default: 10 } }
+          { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+          { name: 'pageSize', in: 'query', required: false, schema: { type: 'integer', default: 10, maximum: 50 } },
+          {
+            name: 'limit',
+            in: 'query',
+            required: false,
+            schema: { type: 'integer', default: 10, maximum: 50 },
+            description: 'Backward-compatible alias for pageSize'
+          }
         ],
         responses: {
           '200': {
