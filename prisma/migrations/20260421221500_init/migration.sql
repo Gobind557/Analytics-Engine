@@ -1,4 +1,4 @@
-﻿-- CreateSchema
+-- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateTable
@@ -94,4 +94,3 @@ ALTER TABLE "events" ADD CONSTRAINT "events_app_id_fkey" FOREIGN KEY ("app_id") 
 
 -- AddForeignKey
 ALTER TABLE "daily_event_stats" ADD CONSTRAINT "daily_event_stats_app_id_fkey" FOREIGN KEY ("app_id") REFERENCES "apps"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
